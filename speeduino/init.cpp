@@ -7,6 +7,7 @@
 #include "updates.h"
 #include "speeduino.h"
 #include "timers.h"
+#include "comms.h"
 #include "comms_secondary.h"
 #include "comms_CAN.h"
 #include "utilities.h"
@@ -27,6 +28,12 @@
 #ifdef SD_LOGGING
   #include "SD_logger.h"
   #include "rtc_common.h"
+#endif
+
+#if defined(CORE_AVR)
+#pragma GCC push_options
+// This minimizes RAM usage at no performance cost
+#pragma GCC optimize ("Os") 
 #endif
 
 #if !defined(UNIT_TEST)
@@ -104,7 +111,7 @@ void initialiseAll(void)
     ***********************************************************************************************************
     * EEPROM reset
     */
-    #if defined(EEPROM_RESET_PIN)
+    #if defined(EEPROM_RESET_PIN) && !defined(UNIT_TEST)
     uint32_t start_time = millis();
     byte exit_erase_loop = false; 
     pinMode(EEPROM_RESET_PIN, INPUT_PULLUP);  
@@ -156,6 +163,7 @@ void initialiseAll(void)
   #endif
 
     Serial.begin(115200);
+    pPrimarySerial = &Serial; //Default to standard Serial interface
     BIT_SET(currentStatus.status4, BIT_STATUS4_ALLOW_LEGACY_COMMS); //Flag legacy comms as being allowed on startup
 
     //Repoint the 2D table structs to the config pages that were just loaded
@@ -173,7 +181,9 @@ void initialiseAll(void)
     }
     else { setPinMapping(configPage2.pinMapping); }
 
-    #if defined(NATIVE_CAN_AVAILABLE)
+    // Repeatedly initialising the CAN bus hangs the system when
+    // running initialisation tests on Teensy 3.5
+    #if defined(NATIVE_CAN_AVAILABLE) && !defined(UNIT_TEST)
       initCAN();
     #endif
 
@@ -3841,3 +3851,7 @@ void changeFullToHalfSync(void)
     }
   }
 }
+
+#if defined(CORE_AVR)
+#pragma GCC pop_options
+#endif
